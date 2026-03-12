@@ -1,35 +1,30 @@
-import { Request, Response } from "express";
-import Lesson from "../models/lesson.model.js";
+import { Request, Response, NextFunction } from "express";
+import {
+  createLessonService,
+  getLessonsService,
+  updateLessonService
+} from "../services/lesson.service.js";
+import { createLessonSchema } from "../validators/lesson.validator.js";
 
 
-// CREATE LESSON
-export const createLesson = async (req: Request, res: Response) => {
+export const createLesson = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+
   try {
-
-    const { title, description, subject } = req.body;
 
     const user = (req as any).user;
 
-    // role validation
-    if (user.role !== "mentor") {
-      return res.status(403).json({
-        message: "Only mentors can create lessons"
-      });
-    }
+    const validated = createLessonSchema.parse(req.body);
 
-    // input validation
-    if (!title || !description || !subject) {
-      return res.status(400).json({
-        message: "Title, subject and description are required"
-      });
-    }
-
-    const lesson = await Lesson.create({
-      title,
-      description,
-      subject,
-      mentorId: user._id
-    });
+    const lesson = await createLessonService(
+      user,
+      validated.title,
+      validated.description,
+      validated.subject
+    );
 
     res.status(201).json({
       message: "Lesson created successfully",
@@ -37,55 +32,18 @@ export const createLesson = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-
-    console.error("Create lesson error:", error);
-
-    res.status(500).json({
-      message: "Internal server error"
-    });
-
+    next(error);
   }
+
 };
 
 
+export const getLessons = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
 
-// GET LESSONS
-// export const getLessons = async (req: Request, res: Response) => {
-
-//   try {
-
-//     const { subject } = req.query;
-
-//     const filter: Record<string, any> = {};
-
-//     if (subject) {
-//       filter.subject = { $regex: subject, $options: "i" };
-//     }
-
-//     const lessons = await Lesson
-//       .find(filter)
-//       .populate("mentorId", "name email")
-//       .sort({ createdAt: -1 });
-
-//     res.json({
-//       count: lessons.length,
-//       lessons
-//     });
-
-//   } catch (error) {
-
-//     console.error("Get lessons error:", error);
-
-//     res.status(500).json({
-//       message: "Internal server error"
-//     });
-
-//   }
-
-// };
-
-
-export const getLessons = async (req: Request, res: Response) => {
   try {
 
     const { subject, page = "1", limit = "10" } = req.query;
@@ -93,21 +51,13 @@ export const getLessons = async (req: Request, res: Response) => {
     const pageNumber = parseInt(page as string);
     const limitNumber = parseInt(limit as string);
 
-    const filter: Record<string, any> = {};
+    const { lessons, totalLessons } = await getLessonsService(
+      subject,
+      pageNumber,
+      limitNumber
+    );
 
-    if (subject) {
-      filter.subject = { $regex: subject, $options: "i" };
-    }
-
-    const totalLessons = await Lesson.countDocuments(filter);
-
-    const lessons = await Lesson.find(filter)
-      .populate("mentorId", "name email")
-      .sort({ createdAt: -1 })
-      .skip((pageNumber - 1) * limitNumber)
-      .limit(limitNumber);
-
-    res.status(201).json({
+    res.json({
       page: pageNumber,
       limit: limitNumber,
       total: totalLessons,
@@ -116,52 +66,32 @@ export const getLessons = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    res.status(500).json({
-      message: "Internal server error"
-    });
+    next(error);
   }
+
 };
 
-export const updateLesson = async (req: Request, res: Response) => {
+
+export const updateLesson = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
 
   try {
 
-    const lessonId = req.params.id;
+    const lessonId = req.params.id as string;
     const user = (req as any).user;
 
-    const lesson = await Lesson.findById(lessonId);
+    const lesson = await updateLessonService(user, lessonId, req.body);
 
-    if (!lesson) {
-      return res.status(404).json({
-        message: "Lesson not found"
-      });
-    }
-
-    if (lesson.mentorId.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        message: "You cannot update this lesson"
-      });
-    }
-
-    const { title, description, subject } = req.body;
-
-    if (title) lesson.title = title;
-    if (description) lesson.description = description;
-    if (subject) lesson.subject = subject;
-
-    await lesson.save();
-
-    res.status(201).json({
+    res.json({
       message: "Lesson updated successfully",
       lesson
     });
 
   } catch (error) {
-
-    res.status(500).json({
-      message: "Internal server error"
-    });
-
+    next(error);
   }
 
 };

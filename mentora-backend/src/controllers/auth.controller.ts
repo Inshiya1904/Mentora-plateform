@@ -1,50 +1,13 @@
-import { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
 import User from "../models/user.model.js";
-import validator from "validator";
+import { signupSchema, loginSchema } from "../validators/auth.validator.js";
+import { generateToken } from "../utils/jwt.js";
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
-
-
-// Generate JWT
-const generateToken = (userId: string) => {
-  const secret = process.env.JWT_SECRET;
-
-  if (!secret) {
-    throw new Error("JWT_SECRET is not defined");
-  }
-
-  return jwt.sign({ id: userId }, secret, {
-    expiresIn: "7d"
-  });
-};
-
-// SIGNUP
-export const signup = async (req: Request, res: Response) => {
+export const signup = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, email, password, role } = req.body;
 
-    // basic validation
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({
-        message: "All fields are required"
-      });
-    }
-
-    
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({ message: "Invalid email" });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be 6+ chars" });
-    }
-
-    if (!["parent", "mentor"].includes(role)) {
-      return res.status(400).json({
-        message: "Invalid role"
-      });
-    }
+    const validated = signupSchema.parse(req.body);
+    const { name, email, password, role } = validated;
 
     const normalizedEmail = email.toLowerCase();
 
@@ -77,27 +40,16 @@ export const signup = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error("Signup error:", error);
-
-    res.status(500).json({
-      message: "Internal server error"
-    });
+    next(error);
   }
 };
 
 
-// LOGIN
-export const login = async (req: Request, res: Response) => {
-
+export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
 
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required"
-      });
-    }
+    const validated = loginSchema.parse(req.body);
+    const { email, password } = validated;
 
     const user = await User.findOne({ email: email.toLowerCase() });
 
@@ -117,7 +69,7 @@ export const login = async (req: Request, res: Response) => {
 
     const token = generateToken(user._id.toString());
 
-    res.status(201).json({
+    res.status(200).json({
       message: "User logged in successfully",
       token,
       user: {
@@ -129,20 +81,12 @@ export const login = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-
-    console.error("Login error:", error);
-
-    res.status(500).json({
-      message: "Internal server error"
-    });
-
+    next(error);
   }
 };
 
 
-// GET CURRENT USER
-export const getMe = async (req: Request, res: Response) => {
-
+export const getMe = async (req: Request, res: Response, next: NextFunction) => {
   try {
 
     const user = (req as any).user;
@@ -153,7 +97,7 @@ export const getMe = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(201).json({
+    res.status(200).json({
       id: user._id,
       name: user.name,
       email: user.email,
@@ -161,11 +105,6 @@ export const getMe = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-
-    res.status(500).json({
-      message: "Internal server error"
-    });
-
+    next(error);
   }
-
 };

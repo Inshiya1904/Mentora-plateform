@@ -2,16 +2,22 @@
 
 ## Overview
 
-Mentora is a simplified backend system for a mentorship platform where **parents, students, and mentors interact**.
+Mentora is a backend system for a mentorship platform where **parents, students, and mentors interact**.
 
 Parents can create student profiles, mentors can create lessons and sessions, and students can attend those sessions.
 
-The project also integrates **AI capabilities using a Large Language Model (LLM)** to:
+The backend also integrates **AI capabilities using a Large Language Model (LLM)** to:
 
 * Summarize long text
-* Provide AI-generated answers to questions
+* Generate AI-powered answers to questions
 
-The backend demonstrates **API design, authentication, role-based authorization, database modeling, and AI integration**.
+This project demonstrates:
+
+* REST API design
+* Authentication and authorization
+* Clean backend architecture
+* Data integrity between related entities
+* AI integration
 
 ---
 
@@ -23,23 +29,46 @@ The backend demonstrates **API design, authentication, role-based authorization,
 * MongoDB
 * Mongoose
 * JWT Authentication
+* Zod Validation
 * Groq LLM API (Llama Model)
+
+Additional tools:
+
+* Helmet (security headers)
+* Morgan (request logging)
+* express-rate-limit (API protection)
 
 ---
 
-# Project Architecture
+# Backend Architecture
 
-The project follows a **layered architecture** for clean separation of concerns:
+The project follows a **layered architecture** to maintain separation of concerns.
 
 ```
-Controllers → Business Logic
-Routes → API Endpoints
-Middleware → Authentication & Authorization
-Services → External APIs (LLM)
-Models → Database Schemas
+Routes
+   ↓
+Controllers
+   ↓
+Services (Business Logic)
+   ↓
+Models (Database)
 ```
 
-Example: the LLM routes call controller functions which then call service functions for the actual AI request. 
+Additional layers:
+
+```
+Middleware → Authentication, Authorization, Error Handling
+Validators → Request validation using Zod
+Utils → Helper functions (JWT generation)
+Config → Environment configuration
+```
+
+Benefits:
+
+* Cleaner controllers
+* Reusable business logic
+* Improved scalability
+* Better maintainability
 
 ---
 
@@ -49,20 +78,20 @@ Example: the LLM routes call controller functions which then call service functi
 
 * Can sign up
 * Can create student profiles
-* Can book lessons
-* Can join sessions for their student
+* Can book lessons for students
+* Can join sessions for their students
 
 ## Mentor
 
 * Can sign up
 * Can create lessons
-* Can create sessions
+* Can create sessions for lessons they own
 
 ## Student
 
 * Created by parents
 * Can attend sessions
-* Can ask AI questions related to sessions
+* Can ask AI questions
 
 ---
 
@@ -80,13 +109,13 @@ POST /auth/login
 GET /auth/me
 ```
 
-Example signup logic validates user input and generates a JWT token. 
+Protected routes require a **valid JWT token**.
 
 ---
 
 # Student Management
 
-Parents can create and view students.
+Parents can create and view students linked to their account.
 
 ### Endpoints
 
@@ -95,13 +124,16 @@ POST /students
 GET /students
 ```
 
-Students are always associated with the parent who created them. 
+Security rules:
+
+* Only parents can create students
+* Students always belong to the parent who created them
 
 ---
 
 # Lesson System
 
-Mentors can create lessons for students.
+Mentors create lessons for students.
 
 ### Endpoints
 
@@ -113,15 +145,15 @@ PATCH /lessons/:id
 
 Features:
 
-* Lesson creation by mentors only
-* Pagination support for listing lessons
-* Mentor ownership validation before updates 
+* Lesson creation restricted to mentors
+* Pagination support
+* Mentor ownership validation before updates
 
 ---
 
 # Booking System
 
-Parents can assign students to lessons.
+Parents assign their students to lessons.
 
 ### Endpoint
 
@@ -129,11 +161,13 @@ Parents can assign students to lessons.
 POST /bookings
 ```
 
-The API validates:
+Validation includes:
 
-* Student belongs to parent
-* Lesson exists
-* Duplicate booking prevention 
+* Student must belong to parent
+* Lesson must exist
+* Duplicate bookings are prevented
+
+Critical operations use **MongoDB transactions** to ensure data integrity.
 
 ---
 
@@ -152,23 +186,24 @@ POST /sessions/:id/join
 Features:
 
 * Mentors create sessions
-* Parents can join sessions for their students
-* Duplicate join prevention
-* Session results populated with lesson and student info 
+* Parents join sessions for their students
+* Ownership checks ensure data integrity
+* Duplicate session joins prevented
+* Session results populated with lesson and student info
 
 ---
 
 # AI Features (LLM Integration)
 
-The project integrates a **Large Language Model** to enhance learning capabilities.
+The backend integrates a **Large Language Model** to enhance learning capabilities.
 
-Two AI endpoints are provided.
+Two AI endpoints are available.
 
 ---
 
 # 1. Text Summarization
 
-Generates concise summaries from long text input.
+Generates concise summaries from long text.
 
 ### Endpoint
 
@@ -180,7 +215,7 @@ POST /llm/summarize
 
 ```json
 {
-"text": "Artificial intelligence is transforming industries including healthcare, finance, and education..."
+"text": "Artificial intelligence is transforming industries including healthcare..."
 }
 ```
 
@@ -188,18 +223,16 @@ POST /llm/summarize
 
 ```json
 {
-"summary": "• AI transforming healthcare, finance and education\n• Machine learning improves disease detection\n• AI automates financial analysis\n• Education platforms use AI for personalized learning",
+"summary": "• AI transforming healthcare, finance and education\n• Machine learning improves disease detection\n• AI automates financial analysis",
 "model": "llama-3.3-70b-versatile"
 }
 ```
-
-The summarization endpoint is protected with rate limiting to avoid abuse. 
 
 ---
 
 # 2. AI Question Answering
 
-Students can ask questions and receive AI-generated explanations.
+Allows students to ask questions and receive AI-generated explanations.
 
 ### Endpoint
 
@@ -219,52 +252,64 @@ POST /llm/ask
 
 ```json
 {
-"answer": "Supervised learning is a machine learning technique where a model learns from labeled training data and uses that knowledge to make predictions.",
+"answer": "Supervised learning is a machine learning technique where a model learns from labeled data.",
 "model": "llama-3.3-70b-versatile"
 }
 ```
 
 ---
 
-# Validation Rules
+# Validation
 
-For the summarization endpoint:
+The project uses **Zod schemas** for request validation.
 
-| Condition               | Response              |
-| ----------------------- | --------------------- |
-| Text missing            | 400 Bad Request       |
-| Text < 50 characters    | 400 Bad Request       |
-| Text > 10000 characters | 413 Payload Too Large |
+Validation is applied to:
 
-These validations are implemented inside the LLM controller. 
+* Authentication requests
+* Student creation
+* Lesson creation
+* Booking creation
+* Session creation
+* AI endpoints
+
+Benefits:
+
+* Prevents invalid data
+* Ensures consistent API behavior
+* Improves security
 
 ---
 
 # Rate Limiting
 
-To prevent abuse, the LLM endpoints use basic rate limiting:
+To prevent abuse of AI endpoints:
 
 ```
 10 requests per minute per IP
 ```
 
-Implemented using `express-rate-limit`. 
+Implemented using:
+
+```
+express-rate-limit
+```
 
 ---
 
 # Security Practices
 
-This project follows important security guidelines:
+The backend includes multiple security improvements:
 
-* API keys are **not hardcoded**
-* API keys are loaded using **environment variables**
 * JWT authentication
-* Password hashing with bcrypt
-* Role-based access control
-* Input validation
+* Password hashing (bcrypt)
+* Role-based authorization
+* Ownership validation between entities
+* Zod schema validation
+* Helmet security headers
+* Morgan request logging
+* Environment variable validation
 * Rate limiting for AI endpoints
-
-Authorization middleware verifies the JWT token before allowing protected routes. 
+* API keys stored securely in environment variables
 
 ---
 
@@ -278,10 +323,10 @@ Example:
 PORT=3000
 MONGO_URI=your_mongodb_connection
 JWT_SECRET=your_secret_key
-GROQ_API_KEY=your_api_key
+GROQ_API_KEY=your_groq_api_key
 ```
 
-API keys must **never be committed to GitHub**.
+⚠ Never commit `.env` files to GitHub.
 
 ---
 
@@ -322,7 +367,7 @@ Example using curl:
 curl -X POST http://localhost:3000/llm/summarize \
 -H "Content-Type: application/json" \
 -d '{
-"text":"Artificial intelligence is rapidly transforming industries including healthcare, finance and education..."
+"text":"Artificial intelligence is transforming industries..."
 }'
 ```
 
@@ -330,13 +375,11 @@ curl -X POST http://localhost:3000/llm/summarize \
 
 # Assumptions
 
-* Summaries are returned in **3–6 bullet points**
+* Summaries return **3–6 bullet points**
 * Maximum summary length ~120 words
 * Text input must be between **50 and 10,000 characters**
-* Rate limit is applied to prevent abuse
-* LLM responses are generated using Groq Llama models
+* AI responses generated using Groq Llama models
+* Rate limiting protects LLM endpoints
 
 ---
-
-
 
